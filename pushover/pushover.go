@@ -4,7 +4,6 @@
 
     TODO:
         - Improve encryption with public/private keys
-        - Account for http errors other than 404
         - Account for errors returned by the API
         - Fix message priority not being parsed by fetchmessages
         - Add disable device
@@ -116,7 +115,7 @@ func (c *Client) LoginDevice() (err error) {
 
     // Set the unexported feilds
     c.deviceOS = GetHostOS()
-    c.provider_device_id = c.deviceOS // Unknown as to what this is
+    c.provider_device_id = c.deviceOS
 
     vars := url.Values{}
     vars.Add("email", c.UserName)

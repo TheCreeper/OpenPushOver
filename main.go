@@ -12,6 +12,7 @@ import (
     "flag"
 
     "./pushover"
+    "./notifications"
 )
 
 func (cfg *ClientConfig) launchListener(acn Account) {
@@ -77,7 +78,14 @@ func (cfg *ClientConfig) launchListener(acn Account) {
 
         for _, v := range client.MessagesResponse.Messages {
 
-            err = NotifySend(v.Title, v.Message, "", "", v.Date)
+            n := &notifications.Notify{
+
+                Title: v.Title,
+                Message: v.Message,
+                Timestamp: v.Date,
+                Application: v.App,
+            }
+            err = n.Push()
             if (err != nil) {
 
                 log.Printf("NotifySend: %s\n", err)
