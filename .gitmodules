@@ -1,0 +1,3 @@
+[submodule "pushover/doc/Pushover-client-protocol"]
+	path = pushover/doc/Pushover-client-protocol
+	url = git@github.com:Mechazawa/Pushover-client-protocol.git
