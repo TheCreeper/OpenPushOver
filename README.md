@@ -1,6 +1,8 @@
 OpenPushOver Client
 =====================
 
+[![Build Status](https://drone.io/github.com/TheCreeper/OpenPushOver/status.png)](https://drone.io/github.com/TheCreeper/OpenPushOver/latest)
+
 - Requirements
 
     - GNU/Linux only
