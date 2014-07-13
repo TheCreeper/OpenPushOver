@@ -11,8 +11,8 @@ import (
     "time"
     "flag"
 
-    "./pushover"
-    "./notifications"
+    "github.com/TheCreeper/OpenPushOver/pushover"
+    "github.com/TheCreeper/OpenPushOver/notifications"
 )
 
 func (cfg *ClientConfig) launchListener(acn Account) {
