@@ -35,7 +35,7 @@ const (
 )
 
 
-// Message priority.
+// Message priority
 const (
 
     LowestPriority      = -2 // lowest priority, no notification
@@ -45,7 +45,7 @@ const (
     EmergencyPriority   = 2 // emergency priority, requires acknowledge
 )
 
-// Message sound.
+// Message sound
 const (
 
     PushoverSound       = "pushover"
@@ -72,6 +72,7 @@ const (
     NoneSound           = "none"
 )
 
+// Errors
 var (
 
     ErrLoginFailed  = errors.New("Pushover: Failed to login")

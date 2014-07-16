@@ -2,7 +2,7 @@ package notifications
 
 import ()
 
-func Push() (err error) {
+func (n *Notify) Push() (err error) {
 
     return
 }

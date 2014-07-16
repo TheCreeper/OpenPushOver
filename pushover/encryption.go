@@ -2,8 +2,6 @@ package pushover
 
 import (
 
-    "crypto/hmac"
-    "crypto/sha256"
     "crypto/rand"
     "encoding/base64"
     "errors"
@@ -13,8 +11,8 @@ import (
 
 const (
 
-    KeySize     = 32
-    NonceSize   = 24
+    keySize     = 32
+    nonceSize   = 24
 )
 
 var (
@@ -28,18 +26,18 @@ var (
 
 func (c *Client) DecryptMessage(message string) (out string, err error) {
 
-    var key [KeySize]byte
+    var key [keySize]byte
     copy(key[:], c.Key)
 
     // Decode message
-    decoded, err := DecodeBase64String(message)
+    decoded, err := decodeBase64String(message)
     if (err != nil) {
 
         return
     }
 
     // Decrypt message
-    decrypted, err := Decrypt(key, decoded)
+    decrypted, err := decrypt(key, decoded)
     if (err != nil) {
 
         return
@@ -49,13 +47,13 @@ func (c *Client) DecryptMessage(message string) (out string, err error) {
     return
 }
 
-func Decrypt(key [KeySize]byte, in []byte) (out []byte, err error) {
+func decrypt(key [keySize]byte, in []byte) (out []byte, err error) {
 
-    var nonce [NonceSize]byte
-    copy(nonce[:], in[:NonceSize])
+    var nonce [nonceSize]byte
+    copy(nonce[:], in[:nonceSize])
 
     var ok bool
-    out, ok = secretbox.Open(out, in[NonceSize:], &nonce, &key)
+    out, ok = secretbox.Open(out, in[nonceSize:], &nonce, &key)
     if (!ok) {
 
         err = ErrSecretBox
@@ -67,16 +65,16 @@ func Decrypt(key [KeySize]byte, in []byte) (out []byte, err error) {
 
 func (c *Client) EncryptMessage(message string) (out string, err error) {
 
-    var key [KeySize]byte
+    var key [keySize]byte
     copy(key[:], c.Key)
 
-    b, err := Encrypt(key, []byte(message))
+    b, err := encrypt(key, []byte(message))
     if (err != nil) {
 
         return
     }
 
-    out, err = EncodeBase64String(b)
+    out, err = encodeBase64String(b)
     if (err != nil) {
 
         return
@@ -85,10 +83,10 @@ func (c *Client) EncryptMessage(message string) (out string, err error) {
     return
 }
 
-func Encrypt(key [KeySize]byte, in []byte) (out []byte, err error) {
+func encrypt(key [keySize]byte, in []byte) (out []byte, err error) {
 
     // Create a new nonce
-    _, nonce, err := NewNonce()
+    _, nonce, err := newNonce()
     if (err != nil) {
 
         return
@@ -103,7 +101,7 @@ func Encrypt(key [KeySize]byte, in []byte) (out []byte, err error) {
     return
 }
 
-func NewNonce() (i int, nonce [NonceSize]byte, err error) {
+func newNonce() (i int, nonce [nonceSize]byte, err error) {
 
     i, err = rand.Read(nonce[:])
     if (err != nil) {
@@ -114,7 +112,7 @@ func NewNonce() (i int, nonce [NonceSize]byte, err error) {
     return
 }
 
-func EncodeBase64String(in []byte) (out string, err error) {
+func encodeBase64String(in []byte) (out string, err error) {
 
     out = base64.StdEncoding.EncodeToString(in)
     if (len(out) < 1) {
@@ -126,43 +124,11 @@ func EncodeBase64String(in []byte) (out string, err error) {
     return
 }
 
-func DecodeBase64String(in string) (out []byte, err error) {
+func decodeBase64String(in string) (out []byte, err error) {
 
     out, err = base64.StdEncoding.DecodeString(in)
     if (err != nil) {
 
-        return
-    }
-
-    return
-}
-
-func GenerateHMAC(key, message []byte) (out []byte, err error) {
-
-    h := hmac.New(sha256.New, key)
-    h.Write(message)
-    out = h.Sum(nil)
-    if (out == nil) {
-
-        err = ErrHMAC
-        return
-    }
-
-    return
-}
-
-func VerifyHMAC(key, h, message []byte) (err error) {
-
-    hmacExpected, err := GenerateHMAC(key, message)
-    if (err != nil) {
-
-        return
-    }
-
-    ok := hmac.Equal(h, hmacExpected)
-    if !(ok) {
-
-        err = ErrVerifyHMAC
         return
     }
 
