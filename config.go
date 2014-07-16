@@ -28,35 +28,6 @@ type ClientConfig struct {
     }
 
     Accounts []Account
-
-    Map struct {
-
-        Sounds struct {
-
-            Pushover string
-            Bike string
-            Bugle string
-            Cashregister string
-            Classical string
-            Cosmic string
-            Falling string
-            Gamelan string
-            Incomming string
-            Intermission string
-            Magic string
-            Mechanical string
-            Pianobar string
-            Siren string
-            Spacealarm string
-            Tugboat string
-            Alien string
-            Climb string
-            Persistent string
-            Echo string
-            Updown string
-            None string
-        }
-    }
 }
 
 type Globals struct {

@@ -10,9 +10,10 @@ import (
     "log"
     "time"
     "flag"
+    "fmt"
 
     "github.com/TheCreeper/OpenPushOver/pushover"
-    "github.com/TheCreeper/OpenPushOver/notifications"
+    "github.com/TheCreeper/OpenPushOver/notification"
 )
 
 func (cfg *ClientConfig) launchListener(acn Account) {
@@ -78,12 +79,34 @@ func (cfg *ClientConfig) launchListener(acn Account) {
 
         for _, v := range client.MessagesResponse.Messages {
 
-            n := &notifications.Notify{
+            var urgency string
+
+            if (v.Priority == pushover.HighPriority) {
+
+                urgency = notification.NormalPriority
+            } else if (v.Priority == pushover.EmergencyPriority) {
+
+                urgency = notification.CriticalPriority
+            } else {
+
+                urgency = notification.NormalPriority
+            }
+
+            if (len(v.Title) < 1) {
+
+                v.Title = "Pushover Notification"
+            }
+            v.Title = fmt.Sprintf("%s (%s)", v.Title, time.Unix(v.Date, 0).Format("2006-01-02 15:04:05"))
+
+            log.Print(v.Priority)
+
+            n := &notification.Notify{
 
                 Title: v.Title,
                 Message: v.Message,
-                Timestamp: v.Date,
-                Application: v.App,
+                Urgency: urgency,
+                Icon: "dialog-information",
+                Category: "im.received",
             }
             err = n.Push() // trigger the desktop notifications
             if (err != nil) {
