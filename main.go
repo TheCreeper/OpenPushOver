@@ -85,18 +85,18 @@ func (cfg *ClientConfig) launchListener(acn Account) {
                 Timestamp: v.Date,
                 Application: v.App,
             }
-            err = n.Push()
+            err = n.Push() // trigger the desktop notifications
             if (err != nil) {
 
-                log.Printf("NotifySend: %s\n", err)
+                log.Printf("Push: %s\n", err)
             }
             log.Printf("[%d]: %s: %s\n", v.Id, v.Title, v.Message)
+        }
 
-            err = client.MarkRead()
-            if (err != nil) {
+        err = client.MarkRead()
+        if (err != nil) {
 
-                log.Fatalf("MarkRead: %s\n", err)
-            }
+            log.Fatalf("MarkRead: %s\n", err)
         }
     }
 }

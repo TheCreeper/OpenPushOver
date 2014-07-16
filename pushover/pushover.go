@@ -1,5 +1,7 @@
 /*
     Reference Implementation: github.com/Mechazawa/Pushover-client-protocol
+    Reference Implementation: github.com/nbrownus/pushover-desktop-client
+    Reference Implementation: github.com/AlekSi/pushover
     API Specs: pushover.net/api
 
     TODO:
@@ -8,6 +10,8 @@
         - Fix message priority not being parsed by fetchmessages
         - Add disable device
         - Do better validiation
+        - Fetch client images
+        - Return more detailed errors
 */
 
 package pushover
@@ -22,11 +26,64 @@ import (
     "errors"
     "fmt"
     "regexp"
+    "strconv"
 )
 
 const (
 
     BaseUrl = "https://api.pushover.net/1"
+)
+
+
+// Message priority.
+const (
+
+    LowestPriority      = -2 // lowest priority, no notification
+    LowPriority         = -1 // low priority, no sound and vibration
+    NormalPriority      = 0 // normal priority, default
+    HighPriority        = 1 // high priority, always with sound and vibration
+    EmergencyPriority   = 2 // emergency priority, requires acknowledge
+)
+
+// Message sound.
+const (
+
+    PushoverSound       = "pushover"
+    BikeSound           = "bike"
+    BugleSound          = "bugle"
+    CashregisterSound   = "cashregister"
+    ClassicalSound      = "classical"
+    CosmicSound         = "cosmic"
+    FallingSound        = "falling"
+    GamelanSound        = "gamelan"
+    IncomingSound       = "incoming"
+    IntermissionSound   = "intermission"
+    MagicSound          = "magic"
+    MechanicalSound     = "mechanical"
+    PianobarSound       = "pianobar"
+    SirenSound          = "siren"
+    SpacealarmSound     = "spacealarm"
+    TugboatSound        = "tugboat"
+    AlienSound          = "alien"
+    ClimbSound          = "climb"
+    PersistentSound     = "persistent"
+    EchoSound           = "echo"
+    UpdownSound         = "updown"
+    NoneSound           = "none"
+)
+
+var (
+
+    ErrLoginFailed  = errors.New("Pushover: Failed to login")
+    ErrDeviceReg    = errors.New("Pushover: Device register failed")
+    ErrFetchMsgF    = errors.New("Pushover: Message fetch failed")
+    ErrMarkReadF    = errors.New("Pushover: Markread messages failed")
+    ErrPushMsgF     = errors.New("Pushover: Unable to push message")
+    ErrReceiptF     = errors.New("Pushover: Unable to get receipt")
+    ErrDeviceAuth   = errors.New("Pushover: Device not authenticated")
+    ErrUserPassword = errors.New("Pushover: User Password not specified")
+    ErrUserName     = errors.New("Pushover: UserName not specified")
+    ErrMessageLimit = errors.New("Pushover: Message is longer than the limit")
 )
 
 type Client struct {
@@ -82,6 +139,7 @@ type Login struct {
     Secret string `json:"secret"`
     Request string `json:"request"`
     Id string `json:"id"`
+    Errors []string `json:"errors"`
 }
 
 func (c *Client) LoginDevice() (err error) {
@@ -89,27 +147,16 @@ func (c *Client) LoginDevice() (err error) {
     // Some validiation
     if (len(c.UserName) < 1) {
 
-        err = errors.New("No username specified")
-        return
+        return ErrUserName
     }
     if (len(c.UserPassword) < 1) {
 
-        err = errors.New("No password specified")
-        return
+        return ErrUserPassword
     }
-    if (len(c.DeviceName) < 1) {
 
-        err = errors.New("No devicename specified")
-        return
-    }
-    if (len(c.DeviceName) > DeviceNameLimit) {
+    err = VerifyDeviceName(c.DeviceName)
+    if (err != nil) {
 
-        err = errors.New("Device name is over the 25 char limit")
-        return
-    }
-    if (len(c.DeviceUUID) < 1) {
-
-        err = errors.New("No device uuid specified")
         return
     }
 
@@ -130,8 +177,7 @@ func (c *Client) LoginDevice() (err error) {
     }
     if (resp.StatusCode >= 400) {
 
-        err = errors.New("Login Failed!")
-        return
+        return ErrLoginFailed
     }
     defer resp.Body.Close()
 
@@ -155,14 +201,14 @@ type Device struct {
     Status int `json:"status"`
     Request string `json:"request"`
     Id string `json:"id"`
+    Errors []string `json:"errors"`
 }
 
 func (c *Client) RegisterDevice(replaceDevice bool) (err error) {
 
     if (len(c.Login.Secret) < 1) {
 
-        err = errors.New("Device not authenticated!")
-        return
+        return ErrDeviceAuth
     }
 
     err = VerifyDeviceName(c.DeviceName)
@@ -195,8 +241,7 @@ func (c *Client) RegisterDevice(replaceDevice bool) (err error) {
     }
     if (resp.StatusCode >= 400) {
 
-        err = errors.New("Device Register Failed")
-        return
+        return ErrDeviceReg
     }
     defer resp.Body.Close()
 
@@ -218,11 +263,11 @@ func (c *Client) RegisterDevice(replaceDevice bool) (err error) {
 type MessagesResponse struct {
 
     Messages []Messages `json:"messages"`
-
     User User `json:"user"`
 
     Status int `json:"status"`
     Request string `json:"request"`
+    Errors []string `json:"errors"`
 }
 
 type Messages struct {
@@ -251,7 +296,7 @@ func (c *Client) FetchMessages() (fetched int, err error) {
 
     if (len(c.Login.Secret) < 1) {
 
-        err = errors.New("Device not authenticated!")
+        err = ErrDeviceAuth
         return
     }
 
@@ -268,7 +313,7 @@ func (c *Client) FetchMessages() (fetched int, err error) {
     }
     if (resp.StatusCode >= 400) {
 
-        err = errors.New("Message Fetch Failed")
+        err = ErrFetchMsgF
         return
     }
     defer resp.Body.Close()
@@ -284,6 +329,22 @@ func (c *Client) FetchMessages() (fetched int, err error) {
 
         return
     }
+    fetched = len(c.MessagesResponse.Messages)
+
+    // Decrypt any encrypted messages
+    if (len(c.Key) > 1) {
+
+        err = c.DecryptMessages()
+        if (err != nil) {
+
+            return
+        }
+    }
+
+    return
+}
+
+func (c *Client) DecryptMessages() (err error) {
 
     re, err := regexp.CompilePOSIX("@Encrypted@.?")
     if (err != nil) {
@@ -292,11 +353,6 @@ func (c *Client) FetchMessages() (fetched int, err error) {
     }
 
     for i, v := range c.MessagesResponse.Messages {
-
-        if (len(c.Key) < 1) {
-
-            continue
-        }
 
         if !(re.MatchString(v.Message)) {
 
@@ -307,11 +363,11 @@ func (c *Client) FetchMessages() (fetched int, err error) {
         out, err := c.DecryptMessage(v.Message)
         if (err != nil) {
 
+            c.MessagesResponse.Messages[i].Message = err.Error()
             continue
         }
         c.MessagesResponse.Messages[i].Message = out
     }
-    fetched = len(c.MessagesResponse.Messages)
 
     return
 }
@@ -320,14 +376,14 @@ type MarkReadResponse struct {
 
     Status int `json: "status"`
     Request string `json: "request"`
+    Errors []string `json:"errors"`
 }
 
 func (c *Client) MarkRead() (err error) {
 
     if (len(c.Login.Secret) < 1) {
 
-        err = errors.New("Device not authenticated!")
-        return
+        return ErrDeviceAuth
     }
 
     vars := url.Values{}
@@ -343,8 +399,7 @@ func (c *Client) MarkRead() (err error) {
     }
     if (resp.StatusCode >= 400) {
 
-        err = errors.New("MarkRead Failed")
-        return
+        return ErrMarkReadF
     }
     defer resp.Body.Close()
 
@@ -365,8 +420,11 @@ func (c *Client) MarkRead() (err error) {
 
 type PushResponse struct {
 
-    Status int
-    Request string
+    Receipt string `json:"receipt"`
+
+    Status int `json: "status"`
+    Request string `json: "request"`
+    Errors []string `json:"errors"`
 }
 
 func (c *Client) Push(message string) (err error) {
@@ -375,24 +433,27 @@ func (c *Client) Push(message string) (err error) {
 
         Message: message,
     }
-    return c.PushMessage(msg)
+    return c.PushMessage(msg, false)
 }
 
 type Message struct {
 
-    Device string
-    Title string
-    Message string
-    Expire int
-    Retry int
-    Priority int
-    Url string
-    UrlTitle string
-    Timestamp string
-    Sound string
+    Device      string // Device name to send to specific devices instead of all
+    Title       string // Title of message
+    Message     string // Message to send
+    Priority    int    // Defaults to 0 although expire needs to be specified when higher than 1
+    Url         string // Url to be sent with message
+    UrlTitle    string // Url title
+    Timestamp   int64 // Timestamp which should be a unixstamp
+    Sound       string // Sound to be played on client device
+
+    // Emergency notifications
+    Expire      int
+    Retry       int
+    Callback    string
 }
 
-func (c *Client) PushMessage(msg Message) (err error) {
+func (c *Client) PushMessage(msg Message, encrypt bool) (err error) {
 
     // Some validations
     err = VerifyUserKey(c.AppToken)
@@ -407,42 +468,13 @@ func (c *Client) PushMessage(msg Message) (err error) {
         return
     }
 
-    if (len(c.DeviceName) > 1) {
+    err = VerifyPushMessage(msg)
+    if (err != nil) {
 
-        err = VerifyDeviceName(c.DeviceName)
-        if (err != nil) {
-
-            return
-        }
-    }
-
-    if (len(msg.Message) < 1) || (len(msg.Message) > MessageLimit) {
-
-        err = errors.New("Message must be specified or is over the 512 char limit")
-        return
-    }
-    if (len(msg.Title) > MessageTitleLimit) {
-
-        err = errors.New("The title is over the 100 char limit")
-        return
-    }
-    if (len(msg.Url) > UrlLimit) {
-
-        err = errors.New("The url is over the 512 char limit")
-        return
-    }
-    if (len(msg.UrlTitle) > UrlTitleLimit) {
-
-        err = errors.New("The url title is over the 100 char limit")
-        return
-    }
-    if (msg.Priority > 1 && msg.Expire < 1) {
-
-        err = errors.New("A prioty of higher than 1 needs an expiry param")
         return
     }
 
-    if (len(c.Key) > 1) {
+    if (encrypt) {
 
         out, err := c.EncryptMessage(msg.Message)
         if (err != nil) {
@@ -451,7 +483,7 @@ func (c *Client) PushMessage(msg Message) (err error) {
         }
         if (len(out) > MessageLimit) {
 
-            return errors.New("Encrypted Message is longer than the limit")
+            return ErrMessageLimit
         }
         msg.Message = fmt.Sprintf("%s %s", "@Encrypted@", out)
     }
@@ -469,8 +501,9 @@ func (c *Client) PushMessage(msg Message) (err error) {
     vars.Add("expire", string(msg.Expire))
     vars.Add("retry", string(msg.Retry))
     vars.Add("priority", string(msg.Priority))
-    vars.Add("timestamp", msg.Timestamp)
+    vars.Add("timestamp", strconv.FormatInt(msg.Timestamp, 10))
     vars.Add("sound", msg.Sound)
+    vars.Add("callback", msg.Callback)
 
     urlF := fmt.Sprintf("%s%s", BaseUrl, "/messages.json")
     httpClient := &http.Client{Transport: &http.Transport{Dial: c.dial}}
@@ -481,8 +514,7 @@ func (c *Client) PushMessage(msg Message) (err error) {
     }
     if (resp.StatusCode >= 400) {
 
-        err = errors.New("Push Message Failed")
-        return
+        return ErrPushMsgF
     }
     defer resp.Body.Close()
 
@@ -501,7 +533,58 @@ func (c *Client) PushMessage(msg Message) (err error) {
     // Update accounting
     c.Accounting.AppLimit = resp.Header.Get("X-Limit-App-Limit")
     c.Accounting.AppRemaining = resp.Header.Get("X-Limit-App-Remaining")
-    c.Accounting.AppReset = resp.Header.Get("-Limit-App-Reset")
+    c.Accounting.AppReset = resp.Header.Get("X-Limit-App-Reset")
+
+    return
+}
+
+type Receipt struct {
+
+    Acknowledged int `json:"acknowledged"`
+    AcknowledgedAt int `json:"acknowledged_at"`
+    LastDeliveredAt int `json:"last_delivered_at"`
+    Expired int `json:"expired"`
+    ExpiresAt int64 `json:"expires_at"`
+    CalledBack int `json:"called_back"`
+    CalledBackAt int64 `json:"called_back_at"`
+
+    Status int `json:"status"`
+    Request string `json: "request"`
+    Errors []string `json:"errors"`
+}
+
+func (c *Client) GetReceipt(receipt string) (err error) {
+
+    err = VerifyReceipt(receipt)
+    if (err != nil) {
+
+        return
+    }
+
+    urlF := fmt.Sprintf("%s/%s.json?token=%s", BaseUrl, "/receipts", receipt, c.AppToken)
+    httpClient := &http.Client{Transport: &http.Transport{Dial: c.dial}}
+    resp, err := httpClient.Get(urlF)
+    if (err != nil) {
+
+        return
+    }
+    if (resp.StatusCode >= 400) {
+
+        return ErrReceiptF
+    }
+    defer resp.Body.Close()
+
+    body, err := ioutil.ReadAll(resp.Body)
+    if (err != nil) {
+
+        return
+    }
+
+    err = json.Unmarshal(body, &c.PushResponse)
+    if (err != nil) {
+
+        return
+    }
 
     return
 }

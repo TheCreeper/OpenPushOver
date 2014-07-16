@@ -10,16 +10,16 @@ import (
 
 func (n *Notify) Push() (err error) {
 
-    if !(n.Timestamp < 1) {
+    if (n.Timestamp > 1) {
 
-        n.date = time.Unix(n.Timestamp, 0).Format("0:00")
+        n.date = time.Unix(n.Timestamp, 0).Format("2006-01-02 15:04:05")
     }
 
     if (len(n.Title) < 1) {
 
         n.Title = "PushOver Notification"
     }
-    n.Title = fmt.Sprintf("%s (%d)", n.Title, n.date)
+    n.Title = fmt.Sprintf("%s (%s)", n.Title, n.date)
 
     if (len(n.Icon) < 1) {
 
