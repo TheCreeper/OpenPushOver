@@ -14,10 +14,12 @@ OpenPushOver Client
 
     - Supports proxys
     - Supports basic end to end encryption
+    - Supports multiple pushover accounts
 
 ##Sample Config
+- You need to create the cache directory
 
-- CheckFrequencySeconds can not be less than 10 seconds and defaults to 10 seconds if set to anything less.
+- CheckFrequencySeconds can not be less than 5 seconds and defaults to 5 seconds if set to anything less.
 
 - Default configuration file is located in the same directory as the exec however can be overridden using the -config flag.
 
@@ -28,8 +30,9 @@ OpenPushOver Client
 ```json
 {
     "Globals": {
+        "CacheDir" : "./cache",
         "DeviceName": "Fusion",
-        "CheckFrequencySeconds": 10
+        "CheckFrequencySeconds": 5
     },
     "Proxys": [
         {

@@ -1,47 +1,45 @@
 package main
 
 import (
+	"net"
+	"time"
 
-    "net"
-    "time"
-
-    "code.google.com/p/go.net/proxy"
+	"code.google.com/p/go.net/proxy"
 )
 
 type ConnHandler struct {
-
-    ProxyType string
-    ProxyAddress string
-    ProxyUsername string
-    ProxyPassword string
-    ProxyTimeout int
+	ProxyType     string
+	ProxyAddress  string
+	ProxyUsername string
+	ProxyPassword string
+	ProxyTimeout  int
 }
 
 func (handler *ConnHandler) HandleConnection(network, addr string) (conn net.Conn, err error) {
 
-    forwardDialer := &net.Dialer {
+	forwardDialer := &net.Dialer{
 
-        Timeout: time.Duration(handler.ProxyTimeout) * time.Minute,
-        DualStack: true,
-    }
+		Timeout:   time.Duration(handler.ProxyTimeout) * time.Minute,
+		DualStack: true,
+	}
 
-    if (len(handler.ProxyAddress) > 1) {
+	if len(handler.ProxyAddress) > 1 {
 
-        auth := &proxy.Auth {
+		auth := &proxy.Auth{
 
-            User: handler.ProxyUsername,
-            Password: handler.ProxyPassword,
-        }
+			User:     handler.ProxyUsername,
+			Password: handler.ProxyPassword,
+		}
 
-        // setup the socks proxy
-        dialer, err := proxy.SOCKS5("tcp", handler.ProxyAddress, auth, forwardDialer)
-        if (err != nil) {
+		// setup the socks proxy
+		dialer, err := proxy.SOCKS5("tcp", handler.ProxyAddress, auth, forwardDialer)
+		if err != nil {
 
-            return nil, err
-        }
+			return nil, err
+		}
 
-        return dialer.Dial(network, addr)
-    }
+		return dialer.Dial(network, addr)
+	}
 
-    return forwardDialer.Dial(network, addr)
+	return forwardDialer.Dial(network, addr)
 }

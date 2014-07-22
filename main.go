@@ -1,167 +1,246 @@
 /*
-    TODO:
-        - Add a webs interface and message cache
+   TODO:
+       - Add a webs interface and message cache
+       - Allow custom sounds
 */
 
 package main
 
 import (
+	"flag"
+	"fmt"
+	"path/filepath"
+	"time"
 
-    "log"
-    "time"
-    "flag"
-    "fmt"
-
-    "github.com/TheCreeper/OpenPushOver/pushover"
-    "github.com/TheCreeper/OpenPushOver/notification"
+	"github.com/Sirupsen/logrus"
+	"github.com/TheCreeper/OpenPushOver/notification"
+	"github.com/TheCreeper/OpenPushOver/pushover"
 )
 
-func (cfg *ClientConfig) launchListener(acn Account) {
+// Create a new logger
+var log = logrus.New()
 
-    // Generate a UUID and save it to the config
-    client := &pushover.Client{
+// Map pushover prioritys to Notify prioritys
+var PushoverToNotifyPriority = map[int]string{
 
-        UserName: acn.Username,
-        UserPassword: acn.Password,
+	pushover.LowestPriority:  notification.LowPriority,
+	pushover.LowPriority:     notification.LowPriority,
+	pushover.NormalPriority:  notification.NormalPriority,
+	pushover.HighPriority:    notification.CriticalPriority,
+	pushover.HighestPriority: notification.CriticalPriority,
+}
 
-        Key: acn.Key,
+func (cfg *ClientConfig) launchPushover(acn Account) {
 
-        DeviceName: cfg.Globals.DeviceName,
-        DeviceUUID: acn.DeviceUUID,
-    }
+	// Generate a UUID and save it to the config
+	client := &pushover.Client{
 
-    // Specify some other options
-    if (len(acn.Proxy) > 1) {
+		UserName:     acn.Username,
+		UserPassword: acn.Password,
 
-        conn := &ConnHandler {
+		Key: acn.Key,
 
-            ProxyType: acn.proxyType,
-            ProxyAddress: acn.proxyAddress,
-            ProxyUsername: acn.proxyUsername,
-            ProxyPassword: acn.proxyPassword,
-            ProxyTimeout: acn.proxyTimeout,
-        }
-        client.Dial = conn.HandleConnection
-    }
+		DeviceName: cfg.Globals.DeviceName,
+		DeviceUUID: acn.DeviceUUID,
+	}
 
-    err := client.LoginDevice()
-    if (err != nil) {
+	// Specify some other options
+	if len(acn.Proxy) > 1 {
 
-        log.Fatalf("LoginDevice: %s\n", err)
-    }
+		conn := &ConnHandler{
 
-    if (acn.Register) {
+			ProxyType:     acn.proxyType,
+			ProxyAddress:  acn.proxyAddress,
+			ProxyUsername: acn.proxyUsername,
+			ProxyPassword: acn.proxyPassword,
+			ProxyTimeout:  acn.proxyTimeout,
+		}
+		client.Dial = conn.HandleConnection
+	}
 
-        err = client.RegisterDevice(acn.Register)
-        if (err != nil) {
+	err := client.LoginDevice()
+	if err != nil {
 
-            log.Fatal("RegisterDevice: %s\n", err)
-        }
-        acn.Register = false
-        cfg.Flush()
-    }
+		log.Errorf("LoginDevice: %s", err)
+		return
+	}
 
-    for {
+	if acn.Register {
 
-        time.Sleep(time.Duration(cfg.Globals.CheckFrequencySeconds) * time.Second)
+		err = client.RegisterDevice(acn.Register)
+		if err != nil {
 
-        fetched, err := client.FetchMessages()
-        if (err != nil) {
+			log.Errorf("RegisterDevice: %s", err)
+			return
+		}
+		acn.Register = false
+		cfg.Flush()
+	}
 
-            log.Printf("FetchMessages: %s\n", err)
-            continue
+	for {
 
-        }
-        if (fetched > 0) {
+		time.Sleep(time.Duration(cfg.Globals.CheckFrequencySeconds) * time.Second)
 
-            log.Printf("Fetched %d Messages\n", fetched)
-        }
+		fetched, err := client.FetchMessages()
+		if err != nil {
 
-        for _, v := range client.MessagesResponse.Messages {
+			log.Warn(err)
+			continue
 
-            var urgency string
+		}
+		if fetched > 0 {
 
-            if (v.Priority == pushover.HighPriority) {
+			log.Infof("Fetched %d Messages", fetched)
+		}
 
-                urgency = notification.NormalPriority
-            } else if (v.Priority == pushover.EmergencyPriority) {
+		for _, v := range client.MessagesResponse.Messages {
 
-                urgency = notification.CriticalPriority
-            } else {
+			var snd string
+			// Check if sound file exists
+			if len(v.Sound) > 1 {
 
-                urgency = notification.NormalPriority
-            }
+				f, err := filepath.Abs(filepath.Join(cfg.Globals.CacheDir, pushover.SoundFileName[v.Sound]))
+				if err != nil {
 
-            if (len(v.Title) < 1) {
+					log.Error(err)
+					return
+				}
+				snd = f
 
-                v.Title = "Pushover Notification"
-            }
-            v.Title = fmt.Sprintf("%s (%s)", v.Title, time.Unix(v.Date, 0).Format("2006-01-02 15:04:05"))
+				exists, err := FileExists(snd)
+				if err != nil {
 
-            log.Print(v.Priority)
+					log.Warn(err)
+				}
+				if !exists {
 
-            n := &notification.Notify{
+					b, err := client.FetchSound(v.Sound)
+					if err != nil {
 
-                Title: v.Title,
-                Message: v.Message,
-                Urgency: urgency,
-                Icon: "dialog-information",
-                Category: "im.received",
-            }
-            err = n.Push() // trigger the desktop notifications
-            if (err != nil) {
+						log.Warn(err)
+					}
 
-                log.Printf("Push: %s\n", err)
-            }
-            log.Printf("[%d]: %s: %s\n", v.Id, v.Title, v.Message)
-        }
+					err = WriteToFile(snd, b)
+					if err != nil {
 
-        err = client.MarkRead()
-        if (err != nil) {
+						log.Warn(err)
+					}
+				}
+			}
 
-            log.Fatalf("MarkRead: %s\n", err)
-        }
-    }
+			// Make sure it has the default icon
+			// TODO: Allow custom default image
+			if len(v.Icon) < 1 {
+
+				v.Icon = "default"
+			}
+
+			var img string
+			// Check if image file exists
+			if len(v.Icon) > 1 {
+
+				f, err := filepath.Abs(filepath.Join(cfg.Globals.CacheDir, fmt.Sprintf("%s.png", v.Icon)))
+				if err != nil {
+
+					log.Error(err)
+					return
+				}
+				img = f
+
+				exists, err := FileExists(img)
+				if err != nil {
+
+					log.Warn(err)
+				}
+				if !exists {
+
+					b, err := client.FetchImage(v.Icon)
+					if err != nil {
+
+						log.Warn(err)
+					}
+
+					err = WriteToFile(img, b)
+					if err != nil {
+
+						log.Warn(err)
+					}
+				}
+			}
+
+			// Make sure it has title
+			if len(v.Title) < 1 {
+
+				v.Title = "Pushover Notification"
+			}
+			v.Title = fmt.Sprintf("%s (%s)", v.Title, time.Unix(v.Date, 0).Format("2006-01-02 15:04:05"))
+
+			// trigger the desktop notifications
+			n := &notification.Notify{
+
+				Title:    v.Title,
+				Message:  v.Message,
+				Urgency:  PushoverToNotifyPriority[v.Priority],
+				Icon:     img,
+				Category: "im.received",
+				Sound:    snd,
+			}
+			err = n.Push()
+			if err != nil {
+
+				log.Warn(err)
+			}
+
+			// Print the notification to terminal
+			log.Infof("[%d]: %s: %s", v.Id, v.Title, v.Message)
+		}
+
+		err = client.MarkRead()
+		if err != nil {
+
+			log.Warn(err)
+		}
+	}
 }
 
 func init() {
 
-    flag.StringVar(&configFile, "config", "./config.json", "The configuration file location")
-    flag.Parse()
+	flag.StringVar(&configFile, "config", "./config.json", "The configuration file location")
+	flag.Parse()
 }
 
 func main() {
 
-    cfg, err := GetCFG(configFile)
-    if (err != nil) {
+	cfg, err := GetCFG(configFile)
+	if err != nil {
 
-        log.Fatalf("GetCFG: %s\n", err)
-    }
+		log.Errorf("GetCFG: %s", err)
+		return
+	}
 
-    for i, v := range cfg.Accounts {
+	for i, v := range cfg.Accounts {
 
-        if (len(v.DeviceUUID) < 1) {
+		if len(v.DeviceUUID) < 1 {
 
-            log.Print("Generating device UUID...")
+			log.Info("Generating device UUID...")
 
-            uuid, err := pushover.GenerateUUID()
-            if (err != nil) {
+			uuid, err := pushover.GenerateUUID()
+			if err != nil {
 
-                log.Fatalf("GenerateUUID: %s\n", err)
-            }
-            v.DeviceUUID = uuid
-            cfg.Accounts[i].DeviceUUID = uuid
+				log.Errorf("GenerateUUID: %s", err)
+				return
+			}
+			v.DeviceUUID = uuid
+			cfg.Accounts[i].DeviceUUID = uuid
 
-            err = cfg.Flush() // write changes to the config to disk
-            if (err != nil) {
+			err = cfg.Flush() // write changes to the config to disk
+			if err != nil {
 
-                log.Printf("cfg.Flush: %s\n", err)
-            }
+				log.Warnf("cfg.Flush: %s", err)
+			}
+		}
+		go cfg.launchPushover(v)
+	}
 
-            log.Print("UUID Generated")
-        }
-        go cfg.launchListener(v)
-    }
-
-    select{}
+	select {}
 }

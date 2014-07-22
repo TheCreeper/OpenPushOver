@@ -1,67 +1,70 @@
 package notification
 
 import (
-
-    "os/exec"
-    "errors"
-)
-
-var (
-
-    errDesc = errors.New("Notifications: A title or message must be specified")
+	"os/exec"
 )
 
 func (n *Notify) Push() (err error) {
 
-    if (len(n.Title) < 1) && (len(n.Message) < 1) {
+	if (len(n.Title) < 1) && (len(n.Message) < 1) {
 
-        return errDesc
-    }
+		return ErrTitleMsg
+	}
 
-    var args []string
+	var args []string
 
-    if (len(n.Title) > 1) {
+	if len(n.Title) > 1 {
 
-        args = append(args, n.Title)
-    }
+		args = append(args, n.Title)
+	}
 
-    if (len(n.Message) > 1) {
+	if len(n.Message) > 1 {
 
-        args = append(args, n.Message)
-    }
+		args = append(args, n.Message)
+	}
 
-    if (len(n.Icon) > 1) {
+	// A custom image needs to be an absolute path
+	if len(n.Icon) > 1 {
 
-        args = append(args, "--icon=" + n.Icon)
-    }
+		args = append(args, "--icon="+n.Icon)
+	}
 
-    if (len(n.Urgency) > 1) {
+	if len(n.Urgency) > 1 {
 
-        args = append(args, "--urgency=" + n.Urgency)
-    }
+		args = append(args, "--urgency="+n.Urgency)
+	}
 
-    if (n.ExpireTime > 1) {
+	if n.ExpireTime > 1 {
 
-        args = append(args, "--expire-time=" + string(n.ExpireTime))
-    }
+		args = append(args, "--expire-time="+string(n.ExpireTime))
+	}
 
-    if (len(n.Category) > 1) {
+	if len(n.Category) > 1 {
 
-        args = append(args, "--category=" + n.Category)
-    }
+		args = append(args, "--category="+n.Category)
+	}
 
-    if (len(n.Hint) > 1) {
+	if len(n.Hint) > 1 {
 
-        args = append(args, "--hint=" + n.Hint)
-    }
+		args = append(args, "--hint="+n.Hint)
+	}
 
-    cmd := exec.Command("notify-send", args...)
-    out, err := cmd.CombinedOutput()
-    if (err != nil) {
+	cmd := exec.Command("notify-send", args...)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
 
-        err = errors.New(string(out))
-        return
-    }
+		return &NotifyErr{Return: string(out), Err: err}
+	}
 
-    return
+	if len(n.Sound) > 1 {
+
+		cmd = exec.Command("paplay", n.Sound)
+		out, err = cmd.CombinedOutput()
+		if err != nil {
+
+			return &NotifyErr{File: n.Sound, Return: string(out), Err: err}
+		}
+	}
+
+	return
 }
