@@ -41,6 +41,16 @@ var (
 	ErrPriority   = errors.New("A priority higher than 1 needs an expiry parm")
 )
 
+func btos(b bool) string {
+
+    if b {
+
+        return "1"
+    }
+
+    return "0"
+}
+
 func GenerateUUID() (id string, err error) {
 
 	u4, err := uuid.NewV4()

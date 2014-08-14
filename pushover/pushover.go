@@ -128,7 +128,8 @@ type Client struct {
 
 	DeviceName         string // Device name
 	DeviceUUID         string // Device UUID
-	deviceOS           string // Device OS. Can be anything
+	OnGcm              bool   // Google Cloud Messaging
+	deviceOS           string // Device OS. Should only be single chars (F, A)
 	provider_device_id string // Unknown
 
 	Key string // Key to use for message decryption
@@ -256,7 +257,7 @@ func (c *Client) LoginDevice() (err error) {
 
 	// Set the unexported feilds
 	c.deviceOS = GetHostOS()
-	c.provider_device_id = c.deviceOS
+	c.provider_device_id = c.deviceOS // We dont know what provider_device_id is
 
 	vars := url.Values{}
 	vars.Add("email", c.UserName)
@@ -310,7 +311,8 @@ func (c *Client) RegisterDevice(replaceDevice bool) (err error) {
 		return
 	}
 
-	var force = "0"
+	// Check if device should be replaced
+	force := "0"
 	if replaceDevice {
 
 		force = "1"
@@ -320,7 +322,7 @@ func (c *Client) RegisterDevice(replaceDevice bool) (err error) {
 	vars.Add("secret", c.Login.Secret)
 	vars.Add("name", c.DeviceName)
 	vars.Add("uuid", c.DeviceUUID)
-	vars.Add("on_gcm", "1")
+	vars.Add("on_gcm", btos(c.OnGcm))
 	vars.Add("os", c.deviceOS)
 	vars.Add("force", force)
 	vars.Add("provider_device_id", c.provider_device_id)
