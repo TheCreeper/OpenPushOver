@@ -30,7 +30,7 @@ var PushoverToNotifyPriority = map[int]string{
 	pushover.HighestPriority: notification.CriticalPriority,
 }
 
-func (cfg *ClientConfig) launchPushover(acn Account) {
+func (cfg *ClientConfig) launchPushover(acn *Account) {
 
 	// Generate a UUID and save it to the config
 	client := &pushover.Client{
@@ -67,14 +67,20 @@ func (cfg *ClientConfig) launchPushover(acn Account) {
 
 	if acn.Register {
 
-		err = client.RegisterDevice(acn.Register)
+		err = client.RegisterDevice(acn.Force)
 		if err != nil {
 
 			log.Errorf("RegisterDevice: %s", err)
 			return
 		}
 		acn.Register = false
-		cfg.Flush(ConfigFile)
+
+		err = cfg.Flush(ConfigFile)
+		if err != nil {
+
+			log.Errorf("Flush: %s", err)
+			return
+		}
 	}
 
 	for {
@@ -224,7 +230,9 @@ func main() {
 		return
 	}
 
-	for i, v := range cfg.Accounts {
+	for i := range cfg.Accounts {
+
+		v := &cfg.Accounts[i]
 
 		if len(v.DeviceUUID) < 1 {
 
@@ -237,7 +245,9 @@ func main() {
 				return
 			}
 			v.DeviceUUID = uuid
-			cfg.Accounts[i].DeviceUUID = uuid
+
+			// If no uuid then set register to true
+			v.Register = true
 
 			err = cfg.Flush(ConfigFile) // write changes to the config to disk
 			if err != nil {

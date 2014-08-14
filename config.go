@@ -24,7 +24,6 @@ type ClientConfig struct {
 	}
 
 	Accounts []Account
-	Map      Map
 }
 
 type Globals struct {
@@ -37,6 +36,7 @@ type Account struct {
 	DeviceUUID string
 
 	Register bool
+	Force    bool
 	Username string
 	Password string
 
@@ -48,32 +48,6 @@ type Account struct {
 	proxyUsername string
 	proxyPassword string
 	proxyTimeout  int
-}
-
-type Map struct {
-	Sounds struct {
-		po string
-		bk string
-		bu string
-		ch string
-		cl string
-		co string
-		fa string
-		gl string
-		ic string
-		im string
-		ma string
-		mc string
-		pn string
-		si string
-		sp string
-		tg string
-		ln string
-		mb string
-		ps string
-		ec string
-		ud string
-	}
 }
 
 func (cfg *ClientConfig) Flush(f string) (err error) {
@@ -138,7 +112,7 @@ func (cfg *ClientConfig) validate() (err error) {
 	return
 }
 
-func GetCFG(f string) (cfg ClientConfig, err error) {
+func GetCFG(f string) (cfg *ClientConfig, err error) {
 
 	b, err := ioutil.ReadFile(f)
 	if err != nil {
