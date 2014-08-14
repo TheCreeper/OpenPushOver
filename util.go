@@ -3,7 +3,7 @@ package main
 import (
 	"bufio"
 	"os"
-	"runtime"
+	"path/filepath"
 )
 
 func GetHostName() string {
@@ -16,19 +16,9 @@ func GetHostName() string {
 	return n
 }
 
-func GetHostOS() (os string) {
+func WriteToFile(path string, b []byte) (err error) {
 
-	if runtime.GOOS != "" {
-
-		return runtime.GOOS
-	}
-
-	return "unknown"
-}
-
-func WriteToFile(file string, b []byte) (err error) {
-
-	f, err := os.OpenFile(file, os.O_RDWR|os.O_CREATE, 0666)
+	f, err := os.OpenFile(filepath.Clean(path), os.O_RDWR|os.O_CREATE, 0666)
 	if err != nil {
 
 		return
@@ -47,9 +37,9 @@ func WriteToFile(file string, b []byte) (err error) {
 	return
 }
 
-func FileExists(file string) (bool, error) {
+func FileExists(path string) (bool, error) {
 
-	_, err := os.Stat(file)
+	_, err := os.Stat(path)
 	if os.IsExist(err) {
 
 		return true, nil
