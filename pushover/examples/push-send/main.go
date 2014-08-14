@@ -28,12 +28,12 @@ func init() {
 
 	flag.StringVar(&apptoken, "apptoken", "", "")
 	flag.StringVar(&userkey, "userkey", "", "")
+	flag.StringVar(&key, "key", "", "")
 
 	flag.StringVar(&title, "title", "", "")
 	flag.StringVar(&message, "message", "", "")
 	flag.IntVar(&priority, "priority", 0, "")
 	flag.IntVar(&expire, "expire", 15, "")
-	flag.StringVar(&key, "key", "", "")
 	flag.StringVar(&sound, "sound", "", "")
 	flag.StringVar(&url, "url", "", "")
 	flag.StringVar(&urltitle, "url-title", "", "")

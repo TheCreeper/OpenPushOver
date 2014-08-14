@@ -74,7 +74,7 @@ func (cfg *ClientConfig) launchPushover(acn Account) {
 			return
 		}
 		acn.Register = false
-		cfg.Flush()
+		cfg.Flush(ConfigFile)
 	}
 
 	for {
@@ -94,6 +94,12 @@ func (cfg *ClientConfig) launchPushover(acn Account) {
 		}
 
 		for _, v := range client.MessagesResponse.Messages {
+
+			// Check if quiet hours is enabled
+			if (client.MessagesResponse.User.QuietHours) && (v.Priority == pushover.NormalPriority) {
+
+				v.Priority = pushover.LowPriority
+			}
 
 			var snd string
 			// Check if sound file exists
@@ -205,13 +211,13 @@ func (cfg *ClientConfig) launchPushover(acn Account) {
 
 func init() {
 
-	flag.StringVar(&configFile, "config", "./config.json", "The configuration file location")
+	flag.StringVar(&ConfigFile, "config", "./config.json", "The configuration file location")
 	flag.Parse()
 }
 
 func main() {
 
-	cfg, err := GetCFG(configFile)
+	cfg, err := GetCFG(ConfigFile)
 	if err != nil {
 
 		log.Errorf("GetCFG: %s", err)
@@ -233,7 +239,7 @@ func main() {
 			v.DeviceUUID = uuid
 			cfg.Accounts[i].DeviceUUID = uuid
 
-			err = cfg.Flush() // write changes to the config to disk
+			err = cfg.Flush(ConfigFile) // write changes to the config to disk
 			if err != nil {
 
 				log.Warnf("cfg.Flush: %s", err)

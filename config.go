@@ -8,7 +8,7 @@ import (
 )
 
 var (
-	configFile string
+	ConfigFile string
 )
 
 type ClientConfig struct {
@@ -24,6 +24,7 @@ type ClientConfig struct {
 	}
 
 	Accounts []Account
+	Map      Map
 }
 
 type Globals struct {
@@ -49,9 +50,35 @@ type Account struct {
 	proxyTimeout  int
 }
 
-func (cfg *ClientConfig) Flush() (err error) {
+type Map struct {
+	Sounds struct {
+		po string
+		bk string
+		bu string
+		ch string
+		cl string
+		co string
+		fa string
+		gl string
+		ic string
+		im string
+		ma string
+		mc string
+		pn string
+		si string
+		sp string
+		tg string
+		ln string
+		mb string
+		ps string
+		ec string
+		ud string
+	}
+}
 
-	file, err := os.OpenFile(configFile, os.O_RDWR|os.O_CREATE, 0666)
+func (cfg *ClientConfig) Flush(f string) (err error) {
+
+	file, err := os.OpenFile(f, os.O_RDWR|os.O_CREATE, 0666)
 	if err != nil {
 
 		return

@@ -93,6 +93,7 @@ var SoundFileName = map[string]string{
 
 // Errors
 var (
+	ErrNotLicensed    = errors.New("Device is not licensed")
 	ErrFetchSound     = errors.New("Unable to fetch sound file")
 	ErrFetchInvalid   = errors.New("Invalid sound name specified")
 	ErrFetchImage     = errors.New("Unable to fetch image")
@@ -114,7 +115,7 @@ type PushRespErr struct {
 	Err   error  // Error message
 }
 
-func (e *PushRespErr) Error() (s string) {
+func (e *PushRespErr) Error() string {
 
 	return e.Query + ": " + e.Err.Error()
 }
@@ -122,23 +123,23 @@ func (e *PushRespErr) Error() (s string) {
 type Client struct {
 	Dial func(network, addr string) (net.Conn, error)
 
-	UserName     string
-	UserPassword string
+	UserName     string // Username
+	UserPassword string // User password
 
-	DeviceName         string
-	DeviceUUID         string
-	deviceOS           string
-	provider_device_id string
+	DeviceName         string // Device name
+	DeviceUUID         string // Device UUID
+	deviceOS           string // Device OS. Can be anything
+	provider_device_id string // Unknown
 
-	Key string
+	Key string // Key to use for message decryption
 
 	Login            Login
 	Device           Device
 	MessagesResponse MessagesResponse
 	MarkReadResponse MarkReadResponse
 
-	AppToken string
-	UserKey  string
+	AppToken string // Application Token
+	UserKey  string // User Key
 
 	Accounting struct {
 		AppLimit     string
@@ -179,6 +180,7 @@ func (c *Client) FetchSound(sound string) (body []byte, err error) {
 	resp, err := httpClient.Get(urlF)
 	if err != nil {
 
+		err = &PushRespErr{Query: urlF, Err: err}
 		return
 	}
 	if resp.StatusCode >= 400 {
@@ -206,6 +208,7 @@ func (c *Client) FetchImage(icon string) (body []byte, err error) {
 	resp, err := httpClient.Get(urlF)
 	if err != nil {
 
+		err = &PushRespErr{Query: urlF, Err: err}
 		return
 	}
 	if resp.StatusCode >= 400 {
@@ -376,16 +379,16 @@ type PullMessage struct {
 
 type User struct {
 	QuietHours        bool `json: "quiet_hours"`
-	IsAndroidLicensed bool `json: "is_android_licensed"`
-	IsIOSLicensed     bool `json: "is_ios_licensed"`
-	isDesktopLicensed bool `json: "is_desktop_licensed"`
+	IsAndroidLicensed bool `json: "is_android_licensed"` // Was the app bought on android?
+	IsIOSLicensed     bool `json: "is_ios_licensed"`     // Was the app bought on IOS
+	IsDesktopLicensed bool `json: "is_desktop_licensed"` // Was the app bought on the Pushover store
 }
 
 func (c *Client) FetchMessages() (fetched int, err error) {
 
 	if len(c.Login.Secret) < 1 {
 
-		err = &PushRespErr{Query: "None", Err: err}
+		err = ErrDeviceAuth
 		return
 	}
 
@@ -422,6 +425,14 @@ func (c *Client) FetchMessages() (fetched int, err error) {
 		return
 	}
 	fetched = len(c.MessagesResponse.Messages)
+
+	/*
+	   // Check if device is desktop licensed
+	   if !(c.MessagesResponse.User.IsDesktopLicensed) {
+
+	       err = &PushRespErr{Query: urlF, Err: ErrNotLicensed}
+	       return
+	   }*/
 
 	// Decrypt any encrypted messages
 	if len(c.Key) > 1 {
