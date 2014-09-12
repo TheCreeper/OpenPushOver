@@ -1,14 +1,15 @@
 /*
-   Reference Implementation: github.com/Mechazawa/Pushover-client-protocol
-   Reference Implementation: github.com/nbrownus/pushover-desktop-client
-   Reference Implementation: github.com/AlekSi/pushover
-   API Specs: pushover.net/api
+	OpenClient API Spec: pushover.net/api/client
+	Message API Spec: pushover.net/api
+	Reference Implementation: github.com/Mechazawa/Pushover-client-protocol
+	Reference Implementation: github.com/nbrownus/pushover-desktop-client
+	Reference Implementation: github.com/AlekSi/pushover
 
-   TODO:
-       - Improve encryption with public/private keys
-       - Account for errors returned by the API
-       - Fix message priority not being parsed by fetchmessages
-       - Add disable device
+	TODO:
+		- Improve encryption with public/private keys
+		- Account for errors returned by the API
+		- Fix message priority not being parsed by fetchmessages
+		- Add disable device
 */
 
 package pushover
@@ -65,32 +66,6 @@ const (
 	NoneSound         = "none"
 )
 
-// Maps sound names to file names
-// Received messages will have an abbreviation of the sound name
-var SoundFileName = map[string]string{
-	"po": "po.mp3", // PushoverSound
-	"bk": "bk.mp3", // BikeSound
-	"bu": "bu.mp3", // BugleSound
-	"ch": "ch.mp3", // CashregisterSound
-	"cl": "cl.mp3", // ClassicalSound
-	"co": "co.mp3", // CosmicSound
-	"fa": "fa.mp3", // FallingSound
-	"gl": "gl.mp3", // GamelanSound
-	"ic": "ic.mp3", // IncomingSound
-	"im": "im.mp3", // IntermissionSound
-	"ma": "ma.mp3", // MagicSound
-	"mc": "mc.mp3", // MechanicalSound
-	"pn": "pn.mp3", // PianobarSound
-	"si": "si.mp3", // SirenSound
-	"sp": "sp.mp3", // SpacealarmSound
-	"tg": "tg.mp3", // TugBoatSound
-	"ln": "ln.mp3", // AlienSound
-	"mb": "mb.mp3", // ClimbSound
-	"ps": "ps.mp3", // PersistentSound
-	"ec": "ec.mp3", // EchoSound
-	"ud": "ud.mp3", // UpdownSound
-}
-
 // Errors
 var (
 	ErrNotLicensed    = errors.New("Device is not licensed")
@@ -99,7 +74,7 @@ var (
 	ErrFetchImage     = errors.New("Unable to fetch image")
 	ErrLoginFailed    = errors.New("Failed to login")
 	ErrDeviceRegister = errors.New("Device register failed")
-	ErrFetchMsg       = errors.New("Message fetch failed")
+	ErrPullMsg        = errors.New("Unable to fetch new messages")
 	ErrMarkRead       = errors.New("Markread messages failed")
 	ErrPushMsg        = errors.New("Unable to push message")
 	ErrReceipt        = errors.New("Unable to get receipt")
@@ -126,15 +101,14 @@ type Client struct {
 	UserName     string // Username
 	UserPassword string // User password
 
-	DeviceName         string // Device name
-	DeviceUUID         string // Device UUID
-	deviceOS           string // Device OS. Should only be single chars such as A (Android), F (Firefox), C (Chrome)
-	provider_device_id string // Unknown. Is required when registering a device
+	DeviceName string // Device name
+	DeviceUUID string // Device UUID
+	deviceOS   string // Device OS. Should only be single chars such as A (Android), F (Firefox), C (Chrome), or O (Open Client)
 
 	Key string // Key to use for message encryption and decryption
 
 	Login            Login
-	Device           Device
+	RegisterResponse RegisterResponse
 	MessagesResponse MessagesResponse
 	MarkReadResponse MarkReadResponse
 
@@ -168,14 +142,7 @@ func (c *Client) dial(network, addr string) (net.Conn, error) {
 // Pass the sound name to fetch the apropiate sound
 func (c *Client) FetchSound(sound string) (body []byte, err error) {
 
-	sound, ok := SoundFileName[sound]
-	if !(ok) {
-
-		err = ErrFetchInvalid
-		return
-	}
-
-	urlF := fmt.Sprintf("%s/sounds/%s", ClientUrl, sound)
+	urlF := fmt.Sprintf("%s/sounds/%s.wav", ClientUrl, sound)
 	httpClient := &http.Client{Transport: &http.Transport{Dial: c.dial}}
 	resp, err := httpClient.Get(urlF)
 	if err != nil {
@@ -229,11 +196,10 @@ func (c *Client) FetchImage(icon string) (body []byte, err error) {
 }
 
 type Login struct {
-	Status  int      `json: "status"`
-	Secret  string   `json: "secret"`
-	Request string   `json: "request"`
-	Id      string   `json: "id"`
-	Errors  []string `json: "errors"`
+	Status  int    `json: "status"`
+	Secret  string `json: "secret"`
+	Request string `json: "request"`
+	ID      string `json: "id"`
 }
 
 func (c *Client) LoginDevice() (err error) {
@@ -255,8 +221,7 @@ func (c *Client) LoginDevice() (err error) {
 	}
 
 	// Set the unexported feilds
-	c.deviceOS = "F" // Sadly it seems only F and C values are available
-	c.provider_device_id = GetHostOS() // We dont know what provider_device_id is
+	c.deviceOS = "O"
 
 	vars := url.Values{}
 	vars.Add("email", c.UserName)
@@ -290,14 +255,13 @@ func (c *Client) LoginDevice() (err error) {
 	return
 }
 
-type Device struct {
-	Status  int      `json: "status"`
-	Request string   `json: "request"`
-	Id      string   `json: "id"`
-	Errors  []string `json: "errors"`
+type RegisterResponse struct {
+	Status  int    `json: "status"`
+	Request string `json: "request"`
+	ID      string `json: "id"`
 }
 
-func (c *Client) RegisterDevice(replaceDevice bool) (err error) {
+func (c *Client) RegisterDevice() (err error) {
 
 	if len(c.Login.Secret) < 1 {
 
@@ -313,10 +277,7 @@ func (c *Client) RegisterDevice(replaceDevice bool) (err error) {
 	vars := url.Values{}
 	vars.Add("secret", c.Login.Secret)
 	vars.Add("name", c.DeviceName)
-	vars.Add("uuid", c.DeviceUUID)
 	vars.Add("os", c.deviceOS)
-	vars.Add("provider_device_id", c.provider_device_id)
-	vars.Add("force", btos(replaceDevice))
 
 	urlF := fmt.Sprintf("%s%s", BaseUrl, "/devices.json")
 	httpClient := &http.Client{Transport: &http.Transport{Dial: c.dial}}
@@ -337,11 +298,12 @@ func (c *Client) RegisterDevice(replaceDevice bool) (err error) {
 		return &PushRespErr{Query: urlF, Err: err}
 	}
 
-	err = json.Unmarshal(body, &c.Device)
+	err = json.Unmarshal(body, &c.RegisterResponse)
 	if err != nil {
 
 		return &PushRespErr{Query: urlF, Err: err}
 	}
+	c.DeviceUUID = c.RegisterResponse.ID
 
 	return
 }
@@ -350,24 +312,26 @@ type MessagesResponse struct {
 	Messages []PullMessage `json: "messages"`
 	User     User          `json: "user"`
 
-	Status  int      `json: "status"`
-	Request string   `json: "request"`
-	Errors  []string `json: "errors"`
+	Status  int    `json: "status"`
+	Request string `json: "request"`
 }
 
 // Pull Message structure
 type PullMessage struct {
-	Id       int    `json: "id"`       // Notification ID
-	Message  string `json: "message"`  // Message body
-	App      string `json: "app"`      // Application name
-	Aid      int    `json: "aid"`      // Application id
-	Icon     string `json: "icon"`     // Icon id
-	Date     int64  `json: "date"`     // Unix Timestamp event occurred or message was sent
-	Priority int    `json: "priority"` // Message priority
-	Acked    int    `json: "acked"`    // If the push has being acknowledged
-	Umid     int    `json: "umid"`     // Unknown
-	Title    string `json: "title"`    // Message title
-	Sound    string `json: "sound"`    // Sound name abbreviation
+	ID       int    `json: "id"`
+	Umid     int    `json: "umid"`
+	Title    string `json: "title"`
+	Message  string `json: "message"`
+	App      string `json: "app"`
+	Aid      int    `json: "aid"`
+	Icon     string `json: "icon"`
+	Date     int64  `json: "date"`
+	Priority int    `json: "priority"`
+	Sound    string `json: "sound"`
+	Url      string `json: "url"`
+	UrlTitle string `json: "url_title"`
+	Acked    int    `json: "acked"`
+	Receipt  int    `json: "receipt"`
 }
 
 type User struct {
@@ -399,7 +363,7 @@ func (c *Client) FetchMessages() (fetched int, err error) {
 	}
 	if resp.StatusCode >= 400 {
 
-		err = &PushRespErr{Query: urlF, Err: err}
+		err = &PushRespErr{Query: urlF, Err: ErrPullMsg}
 		return
 	}
 	defer resp.Body.Close()
@@ -419,21 +383,29 @@ func (c *Client) FetchMessages() (fetched int, err error) {
 	}
 	fetched = len(c.MessagesResponse.Messages)
 
-	/*
-	   // Check if device is desktop licensed
-	   if !(c.MessagesResponse.User.IsDesktopLicensed) {
+	for _, v := range c.MessagesResponse.Messages {
 
-	       err = &PushRespErr{Query: urlF, Err: ErrNotLicensed}
-	       return
-	   }*/
+		// Decrypt the message if required
+		if len(c.Key) > 0 && isEncrypted(v.Message) {
 
-	// Decrypt any encrypted messages
-	if len(c.Key) > 1 {
+			msg, err := decryptMessage(c.Key, v.Message)
+			if err != nil {
 
-		err = c.decryptMessages()
-		if err != nil {
+				return 0, err
+			}
+			v.Message = msg
+		}
 
-			return
+		// According to the API spec the title should contain the application name if empty
+		if len(v.Title) < 1 {
+
+			v.Title = v.App
+		}
+
+		// Make sure an icon is specified in the message
+		if len(v.Icon) < 1 {
+
+			v.Icon = "default"
 		}
 	}
 
@@ -441,12 +413,16 @@ func (c *Client) FetchMessages() (fetched int, err error) {
 }
 
 type MarkReadResponse struct {
-	Status  int      `json: "status"`
-	Request string   `json: "request"`
-	Errors  []string `json: "errors"`
+	Status  int    `json: "status"`
+	Request string `json: "request"`
 }
 
-func (c *Client) MarkRead() (err error) {
+func (c *Client) MarkReadHighest() (err error) {
+
+	return c.MarkRead(c.MessagesResponse.Messages[len(c.MessagesResponse.Messages)-1].ID)
+}
+
+func (c *Client) MarkRead(id int) (err error) {
 
 	if len(c.Login.Secret) < 1 {
 
@@ -455,7 +431,7 @@ func (c *Client) MarkRead() (err error) {
 
 	vars := url.Values{}
 	vars.Add("secret", c.Login.Secret)
-	vars.Add("message", "99999")
+	vars.Add("message", strconv.Itoa(id))
 
 	urlF := fmt.Sprintf("%s%s%s%s", BaseUrl, "/devices/", c.DeviceUUID, "/update_highest_message.json")
 	httpClient := &http.Client{Transport: &http.Transport{Dial: c.dial}}
@@ -608,9 +584,8 @@ type Receipt struct {
 	CalledBack      int   `json: "called_back"`
 	CalledBackAt    int64 `json: "called_back_at"`
 
-	Status  int      `json: "status"`
-	Request string   `json: "request"`
-	Errors  []string `json: "errors"`
+	Status  int    `json: "status"`
+	Request string `json: "request"`
 }
 
 func (c *Client) GetReceipt(receipt string) (err error) {

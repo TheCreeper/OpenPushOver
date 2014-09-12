@@ -3,12 +3,24 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
 )
 
+const (
+	MinCheckSeconds = 5
+)
+
 var (
 	ConfigFile string
+)
+
+// Some errors
+var (
+	ErrNoDevName    = errors.New("No device name specified")
+	ErrCheckSeconds = fmt.Errorf("No time specified for checkseconds or less than %s", MinCheckSeconds)
 )
 
 type ClientConfig struct {
@@ -27,16 +39,14 @@ type ClientConfig struct {
 }
 
 type Globals struct {
-	CacheDir              string
-	DeviceName            string
-	CheckFrequencySeconds int
+	CacheDir     string
+	DeviceName   string
+	CheckSeconds int
 }
 
 type Account struct {
 	DeviceUUID string
 
-	Register bool
-	Force    bool
 	Username string
 	Password string
 
@@ -59,20 +69,20 @@ func (cfg *ClientConfig) Flush(f string) (err error) {
 	}
 	defer file.Close()
 
-	b, err := json.MarshalIndent(cfg, "", "    ")
+	b, err := json.MarshalIndent(cfg, "", "	")
 	if err != nil {
 
 		return
 	}
 
 	buf := bufio.NewWriter(file)
-	defer buf.Flush()
 
 	_, err = buf.Write(b)
 	if err != nil {
 
 		return
 	}
+	defer buf.Flush()
 
 	return
 }
@@ -81,12 +91,12 @@ func (cfg *ClientConfig) validate() (err error) {
 
 	if len(cfg.Globals.DeviceName) < 1 {
 
-		cfg.Globals.DeviceName = GetHostName()
+		return ErrNoDevName
 	}
 
-	if cfg.Globals.CheckFrequencySeconds < 5 {
+	if cfg.Globals.CheckSeconds < MinCheckSeconds {
 
-		cfg.Globals.CheckFrequencySeconds = 5 // Be friendly to their servers
+		return ErrCheckSeconds
 	}
 
 	for i, v := range cfg.Accounts {

@@ -5,74 +5,74 @@ import (
 	"path/filepath"
 )
 
-func (n *Notify) Push() (err error) {
+func (m *Message) Push() (err error) {
 
-	if (len(n.Title) < 1) && (len(n.Message) < 1) {
+	if (len(m.Title) < 1) && (len(m.Body) < 1) {
 
 		return ErrTitleMsg
 	}
 
 	var args []string
 
-	if len(n.Title) > 1 {
+	if len(m.Title) > 1 {
 
-		args = append(args, n.Title)
+		args = append(args, m.Title)
 	}
 
-	if len(n.Message) > 1 {
+	if len(m.Body) > 1 {
 
-		args = append(args, n.Message)
+		args = append(args, m.Body)
 	}
 
 	// A custom image needs to be an absolute path
-	if len(n.Icon) > 1 {
+	if len(m.Icon) > 1 {
 
-		args = append(args, "--icon=" + filepath.Clean(n.Icon))
+		args = append(args, "--icon="+filepath.Clean(m.Icon))
 	}
 
-	if len(n.Urgency) > 1 {
+	if len(m.Urgency) > 1 {
 
-		args = append(args, "--urgency=" + n.Urgency)
+		args = append(args, "--urgency="+m.Urgency)
 	}
 
-	if n.ExpireTime > 1 {
+	if m.ExpireTime > 1 {
 
-		args = append(args, "--expire-time=" + string(n.ExpireTime))
+		args = append(args, "--expire-time="+string(m.ExpireTime))
 	}
 
-	if len(n.Category) > 1 {
+	if len(m.Category) > 1 {
 
-		args = append(args, "--category=" + n.Category)
+		args = append(args, "--category="+m.Category)
 	}
 
-	if len(n.Hint) > 1 {
+	if len(m.Hint) > 1 {
 
-		args = append(args, "--hint=" + n.Hint)
+		args = append(args, "--hint="+m.Hint)
 	}
 
 	cmd := exec.Command("notify-send", args...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 
-		return &NotifyErr{Return: string(out), Err: err}
+		return &NotificationErr{Return: string(out), Err: err}
 	}
 
-	if len(n.Sound) > 1 {
+	if len(m.Sound) > 1 {
 
-		return n.PlaySound()
+		return m.PlaySound()
 	}
 
 	return
 }
 
-func (n *Notify) PlaySound() error {
+func (m *Message) PlaySound() (err error) {
 
-	cmd := exec.Command("paplay", n.Sound)
+	cmd := exec.Command("paplay", m.Sound)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 
-		return &NotifyErr{File: n.Sound, Return: string(out), Err: err}
+		return &NotificationErr{File: m.Sound, Return: string(out), Err: err}
 	}
 
-	return nil
+	return
 }

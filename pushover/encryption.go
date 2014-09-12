@@ -18,49 +18,47 @@ const (
 
 // Errors
 var (
+	ErrMsgNoEnc     = errors.New("Message is not encrypted")
 	ErrSecretBox    = errors.New("Failed to open Secretbox")
 	ErrHMAC         = errors.New("Unable to generate HMAC")
 	ErrVerifyHMAC   = errors.New("Unable to verify HMAC")
 	ErrEncodeBase64 = errors.New("Unable to encode to base64")
 )
 
-func (c *Client) decryptMessages() (err error) {
+// Some regular expressions
+var (
 
-	var key [keySize]byte
-	copy(key[:], c.Key)
+	// Valid encrypted message.
+	ValidEncMsg = regexp.MustCompile("@Enc@.?")
+)
 
-	re, err := regexp.CompilePOSIX("@Encrypted@.?")
+func isEncrypted(msg string) bool {
+
+	return ValidEncMsg.MatchString(msg)
+}
+
+func decryptMessage(key, s string) (msg string, err error) {
+
+	var keyBytes [keySize]byte
+	copy(keyBytes[:], key)
+
+	s = ValidEncMsg.ReplaceAllString(s, "")
+
+	// Decode message
+	decoded, err := decodeBase64String(s)
 	if err != nil {
 
 		return
 	}
 
-	// Range through all fetched messages and decrypt any encrypted
-	for i, v := range c.MessagesResponse.Messages {
+	// Decrypt message
+	decrypted, err := decrypt(keyBytes, decoded)
+	if err != nil {
 
-		if !(re.MatchString(v.Message)) {
-
-			continue
-		}
-		v.Message = re.ReplaceAllString(v.Message, "")
-
-		// Decode message
-		decoded, err := decodeBase64String(v.Message)
-		if err != nil {
-
-			return err
-		}
-
-		// Decrypt message
-		decrypted, err := decrypt(key, decoded)
-		if err != nil {
-
-			return err
-		}
-
-		c.MessagesResponse.Messages[i].Message = string(decrypted)
+		return
 	}
 
+	msg = string(decrypted)
 	return
 }
 

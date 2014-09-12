@@ -4,9 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
-	"runtime"
-
-	"github.com/nu7hatch/gouuid"
 )
 
 // Pushover api limits
@@ -31,7 +28,6 @@ var (
 	ErrVerifyDeviceName = errors.New("DeviceName must contain at least one character and may only contain letters, numbers, dashes, and underscores")
 	ErrVerifyUserKey    = fmt.Errorf("User and group identifiers must be at least %d characters long, case-sensitive, and may only contain letters and numbers\n", UserKeyLimit)
 	ErrVerifyAppToken   = fmt.Errorf("Application tokens are case-sensitive and must be at least %d characters long, and may only contain letters and numbers\n", AppTokenLimit)
-	ErrVerifyDeviceUUID = fmt.Errorf("Device UUID must be no longer than %d characters long", DeviceUUIDLimit)
 	ErrVerifyReceipt    = fmt.Errorf("Receipt must be at least %s and is case-sensitive", ReceiptLimit)
 
 	ErrMsgLimit   = fmt.Errorf("Message specified is not specified or is over the %d char limit\n", MessageLimit)
@@ -43,34 +39,12 @@ var (
 
 func btos(b bool) string {
 
-    if b {
+	if b {
 
-        return "1"
-    }
-
-    return "0"
-}
-
-func GenerateUUID() (id string, err error) {
-
-	u4, err := uuid.NewV4()
-	if err != nil {
-
-		return
+		return "1"
 	}
 
-	id = u4.String()
-	return
-}
-
-func GetHostOS() (os string) {
-
-	if runtime.GOOS != "" {
-
-		return runtime.GOOS
-	}
-
-	return "unknown"
+	return "0"
 }
 
 func VerifyDeviceName(name string) (err error) {
@@ -85,7 +59,7 @@ func VerifyDeviceName(name string) (err error) {
 		return ErrVerifyDeviceName
 	}
 
-	re, err := regexp.CompilePOSIX("^[a-zA-Z0-9_-]+$")
+	re, err := regexp.Compile("^[a-zA-Z0-9_-]+$")
 	if err != nil {
 
 		return
@@ -106,7 +80,7 @@ func VerifyUserKey(key string) (err error) {
 		return ErrVerifyUserKey
 	}
 
-	re, err := regexp.CompilePOSIX("^[A-Za-z0-9]+$")
+	re, err := regexp.Compile("^[A-Za-z0-9]+$")
 	if err != nil {
 
 		return
@@ -127,7 +101,7 @@ func VerifyAppToken(token string) (err error) {
 		return ErrVerifyAppToken
 	}
 
-	re, err := regexp.CompilePOSIX("^[A-Za-z0-9]+$")
+	re, err := regexp.Compile("^[A-Za-z0-9]+$")
 	if err != nil {
 
 		return
@@ -137,24 +111,6 @@ func VerifyAppToken(token string) (err error) {
 
 		return ErrVerifyAppToken
 	}
-
-	return
-}
-
-func VerifyDeviceUUID(id string) (err error) {
-
-	if len(id) < 1 {
-
-		return ErrVerifyDeviceUUID
-	}
-
-	_, err = uuid.Parse([]byte(id))
-	if err != nil {
-
-		return
-	}
-
-	// Use regexp too to verify
 
 	return
 }
@@ -192,7 +148,7 @@ func VerifyReceipt(receipt string) (err error) {
 		return ErrVerifyReceipt
 	}
 
-	re, err := regexp.CompilePOSIX("^[A-Za-z0-9]{30}$")
+	re, err := regexp.Compile("^[A-Za-z0-9]{30}$")
 	if err != nil {
 
 		return

@@ -5,9 +5,9 @@ import (
 	"strings"
 )
 
-type Notify struct {
+type Message struct {
 	Title      string
-	Message    string
+	Body       string
 	Icon       string
 	Urgency    string
 	ExpireTime int
@@ -27,13 +27,13 @@ var (
 	ErrTitleMsg = errors.New("Notification: A title or message must be specified")
 )
 
-type NotifyErr struct {
+type NotificationErr struct {
 	File   string
 	Return string
 	Err    error
 }
 
-func (e *NotifyErr) Error() string {
+func (e *NotificationErr) Error() string {
 
 	// Usually return will have a newline character
 	return e.File + " " + strings.TrimSpace(e.Return) + ": " + e.Err.Error()

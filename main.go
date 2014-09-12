@@ -10,6 +10,7 @@ import (
 	"flag"
 	"fmt"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/Sirupsen/logrus"
@@ -30,7 +31,7 @@ var PushoverToNotifyPriority = map[int]string{
 	pushover.HighestPriority: notification.CriticalPriority,
 }
 
-func (cfg *ClientConfig) launchPushover(acn *Account) {
+func (cfg *ClientConfig) LaunchClient(wg *sync.WaitGroup, acn *Account) {
 
 	// Generate a UUID and save it to the config
 	client := &pushover.Client{
@@ -64,16 +65,17 @@ func (cfg *ClientConfig) launchPushover(acn *Account) {
 		log.Errorf("LoginDevice: %s", err)
 		return
 	}
+	defer wg.Done()
 
-	if acn.Register {
+	if len(acn.DeviceUUID) < 1 {
 
-		err = client.RegisterDevice(acn.Force)
+		err = client.RegisterDevice()
 		if err != nil {
 
 			log.Errorf("RegisterDevice: %s", err)
 			return
 		}
-		acn.Register = false
+		acn.DeviceUUID = client.DeviceUUID
 
 		err = cfg.Flush(ConfigFile)
 		if err != nil {
@@ -85,7 +87,7 @@ func (cfg *ClientConfig) launchPushover(acn *Account) {
 
 	for {
 
-		time.Sleep(time.Duration(cfg.Globals.CheckFrequencySeconds) * time.Second)
+		time.Sleep(time.Duration(cfg.Globals.CheckSeconds) * time.Second)
 
 		fetched, err := client.FetchMessages()
 		if err != nil {
@@ -97,122 +99,112 @@ func (cfg *ClientConfig) launchPushover(acn *Account) {
 		if fetched > 0 {
 
 			log.Infof("Fetched %d Messages", fetched)
-		}
 
-		for _, v := range client.MessagesResponse.Messages {
+			for _, v := range client.MessagesResponse.Messages {
 
-			// Check if quiet hours is enabled
-			if (client.MessagesResponse.User.QuietHours) && (v.Priority == pushover.NormalPriority) {
+				// Check if quiet hours is enabled
+				if (client.MessagesResponse.User.QuietHours) && (v.Priority == pushover.NormalPriority) {
 
-				v.Priority = pushover.LowPriority
-			}
-
-			var snd string
-			// Check if sound file exists
-			if len(v.Sound) > 1 {
-
-				f, err := filepath.Abs(filepath.Join(cfg.Globals.CacheDir, pushover.SoundFileName[v.Sound]))
-				if err != nil {
-
-					log.Error(err)
-					return
+					v.Priority = pushover.LowPriority
 				}
-				snd = f
 
-				exists, err := FileExists(snd)
+				var snd string
+				// Check if sound file exists
+				if len(v.Sound) > 1 {
+
+					f, err := filepath.Abs(filepath.Join(cfg.Globals.CacheDir, v.Sound+".wav"))
+					if err != nil {
+
+						log.Error(err)
+						return
+					}
+					snd = f
+
+					exists, err := FileExists(snd)
+					if err != nil {
+
+						log.Warn(err)
+					}
+					if !exists {
+
+						b, err := client.FetchSound(v.Sound)
+						if err != nil {
+
+							log.Warn(err)
+						}
+
+						err = WriteToFile(snd, b)
+						if err != nil {
+
+							log.Warn(err)
+						}
+					}
+				}
+
+				var img string
+				// Check if image file exists
+				if len(v.Icon) > 1 {
+
+					f, err := filepath.Abs(filepath.Join(cfg.Globals.CacheDir, fmt.Sprintf("%s.png", v.Icon)))
+					if err != nil {
+
+						log.Error(err)
+						return
+					}
+					img = f
+
+					exists, err := FileExists(img)
+					if err != nil {
+
+						log.Warn(err)
+					}
+					if !exists {
+
+						b, err := client.FetchImage(v.Icon)
+						if err != nil {
+
+							log.Warn(err)
+						}
+
+						err = WriteToFile(img, b)
+						if err != nil {
+
+							log.Warn(err)
+						}
+					}
+				}
+
+				v.Title = fmt.Sprintf("%s (%s)", v.Title, time.Unix(v.Date, 0).Format("2006-01-02 15:04:05"))
+
+				// trigger the desktop notifications
+				n := &notification.Message{
+
+					Title:    v.Title,
+					Body:     v.Message,
+					Urgency:  PushoverToNotifyPriority[v.Priority],
+					Icon:     img,
+					Category: "im.received",
+					Sound:    snd,
+				}
+				err = n.Push()
 				if err != nil {
 
 					log.Warn(err)
 				}
-				if !exists {
 
-					b, err := client.FetchSound(v.Sound)
-					if err != nil {
-
-						log.Warn(err)
-					}
-
-					err = WriteToFile(snd, b)
-					if err != nil {
-
-						log.Warn(err)
-					}
-				}
+				// Print the notification to terminal
+				log.Infof("[%d]: %s: %s", v.ID, v.Title, v.Message)
 			}
 
-			// Make sure it has the default icon
-			// TODO: Allow custom default image
-			if len(v.Icon) < 1 {
-
-				v.Icon = "default"
-			}
-
-			var img string
-			// Check if image file exists
-			if len(v.Icon) > 1 {
-
-				f, err := filepath.Abs(filepath.Join(cfg.Globals.CacheDir, fmt.Sprintf("%s.png", v.Icon)))
-				if err != nil {
-
-					log.Error(err)
-					return
-				}
-				img = f
-
-				exists, err := FileExists(img)
-				if err != nil {
-
-					log.Warn(err)
-				}
-				if !exists {
-
-					b, err := client.FetchImage(v.Icon)
-					if err != nil {
-
-						log.Warn(err)
-					}
-
-					err = WriteToFile(img, b)
-					if err != nil {
-
-						log.Warn(err)
-					}
-				}
-			}
-
-			// Make sure it has title
-			if len(v.Title) < 1 {
-
-				v.Title = "Pushover Notification"
-			}
-			v.Title = fmt.Sprintf("%s (%s)", v.Title, time.Unix(v.Date, 0).Format("2006-01-02 15:04:05"))
-
-			// trigger the desktop notifications
-			n := &notification.Notify{
-
-				Title:    v.Title,
-				Message:  v.Message,
-				Urgency:  PushoverToNotifyPriority[v.Priority],
-				Icon:     img,
-				Category: "im.received",
-				Sound:    snd,
-			}
-			err = n.Push()
+			err = client.MarkReadHighest()
 			if err != nil {
 
 				log.Warn(err)
 			}
-
-			// Print the notification to terminal
-			log.Infof("[%d]: %s: %s", v.Id, v.Title, v.Message)
-		}
-
-		err = client.MarkRead()
-		if err != nil {
-
-			log.Warn(err)
 		}
 	}
+
+	wg.Done()
 }
 
 func init() {
@@ -222,6 +214,8 @@ func init() {
 }
 
 func main() {
+
+	var wg sync.WaitGroup
 
 	cfg, err := GetCFG(ConfigFile)
 	if err != nil {
@@ -234,29 +228,9 @@ func main() {
 
 		v := &cfg.Accounts[i]
 
-		if len(v.DeviceUUID) < 1 {
-
-			log.Info("Generating device UUID...")
-
-			uuid, err := pushover.GenerateUUID()
-			if err != nil {
-
-				log.Errorf("GenerateUUID: %s", err)
-				return
-			}
-			v.DeviceUUID = uuid
-
-			// If no uuid then set register to true
-			v.Register = true
-
-			err = cfg.Flush(ConfigFile) // write changes to the config to disk
-			if err != nil {
-
-				log.Warnf("cfg.Flush: %s", err)
-			}
-		}
-		go cfg.launchPushover(v)
+		wg.Add(1)
+		go cfg.LaunchClient(&wg, v)
 	}
 
-	select {}
+	wg.Wait()
 }

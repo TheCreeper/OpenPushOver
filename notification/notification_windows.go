@@ -1,6 +1,6 @@
 package notification
 
-func (n *Notify) Push() (err error) {
+func (m *Message) Push() (err error) {
 
 	return
 }

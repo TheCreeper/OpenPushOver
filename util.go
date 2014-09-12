@@ -6,16 +6,6 @@ import (
 	"path/filepath"
 )
 
-func GetHostName() string {
-
-	n, e := os.Hostname()
-	if e != nil {
-
-		n = "unknown"
-	}
-	return n
-}
-
 func WriteToFile(path string, b []byte) (err error) {
 
 	f, err := os.OpenFile(filepath.Clean(path), os.O_RDWR|os.O_CREATE, 0666)
