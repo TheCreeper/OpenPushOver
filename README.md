@@ -1,9 +1,7 @@
-OpenPushOver Client
-=====================
+# OpenPushOver Client
+[![License](http://img.shields.io/:license-gpl3-blue.svg)](http://www.gnu.org/licenses/gpl-3.0.html)
 
-[![Build Status](https://drone.io/github.com/TheCreeper/OpenPushOver/status.png)](https://drone.io/github.com/TheCreeper/OpenPushOver/latest)
-
-![ScreenShot](http://firebit.co.uk/imgsrc/06521.png)
+![ScreenShot](http://files.firebit.co.uk/i/06521.png)
 
 - Requirements
 
@@ -16,7 +14,7 @@ OpenPushOver Client
     - Supports basic end to end encryption
     - Supports multiple pushover accounts
 
-##Sample Config
+## Sample Config
 - You need to create the cache directory
 
 - CheckFrequencySeconds can not be less than 5 seconds and defaults to 5 seconds if set to anything less.
