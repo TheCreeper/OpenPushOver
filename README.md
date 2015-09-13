@@ -1,4 +1,4 @@
-# OpenPushOver Client
+# OpenPushOver
 [![License](http://img.shields.io/:license-gpl3-blue.svg)](http://www.gnu.org/licenses/gpl-3.0.html)
 
 ![ScreenShot](http://files.firebit.co.uk/i/06521.png)
